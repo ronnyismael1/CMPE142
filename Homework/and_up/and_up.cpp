@@ -15,16 +15,13 @@ int main (int argc, char **argv) {
 
     unsigned int result;    // Unsigned to handle binary better
     char *p;                                          
-
+    result = 0xFFFF;        // Initialize result
     // For loop to perform bitwise AND on arguments
     for (int i = 1; i < argc; i++) {
         char *p;
         long conv = strtol(argv[i], &p, 0); // Base 0 to auto-detect if it is hex, dec, or octal
-        if (i == 1) {
-            result = conv;  // First value initialize result
-        }else {
-            result &= conv; // Result is then bitwise AND with arguments
-        }
+        result &= conv;
+        
         printf("%ld\t", conv);
         printBinary(conv, MAX_WIDTH);
         printf("\n");
