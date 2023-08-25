@@ -25,6 +25,6 @@ int main (int argc, char **argv) {
         }
     }
     // Prints results below
-    printf("%ld", result);
+    printf("%ld\n", result);
     exit(0);
 }
