@@ -21,7 +21,7 @@ int main (int argc, char **argv) {
     }
     unsigned int result;    // Unsigned to handle binary better
     char *p;                                          // Initialize result to be first arg
-    result = strtol(argv[1], &p, 10);                 // ""
+    result = strtol(argv[1], &p, 0);                  // ""
     printf("%u\t", result);                           // ""
     printBinaryWithZeros(result, MAX_WIDTH);          // ""
     printf("\n");                                     // ""
@@ -29,7 +29,7 @@ int main (int argc, char **argv) {
     // For loop to perform bitwise AND on arguments
     for (int i = 2; i < argc; i++) {
         char *p;
-        long conv = strtol(argv[i], &p, 10);
+        long conv = strtol(argv[i], &p, 0); // Base 0 to auto-detect if it is hex, dec, or octal
         result &= conv;
 
         printf("%ld\t", conv);
@@ -38,7 +38,7 @@ int main (int argc, char **argv) {
     }
 
     // Prints results below
-    printf("%ld\t", result);
+    printf("----------------------------\n%ld\t", result);
     printBinaryWithZeros(result, MAX_WIDTH);
     printf("\n");
     exit(0);
