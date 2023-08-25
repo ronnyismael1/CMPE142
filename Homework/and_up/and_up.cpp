@@ -15,7 +15,6 @@ int main (int argc, char **argv) {
         // If it is not a number
         if (*p) { // If p is pointing to non-null then it means argv[i] wasn't fully a number
             printf("%s is not a number\n", argv[i]);
-            unsigned int temp = 0xFFFF;
             for (int j = 0; argv[i][j] != '\0'; j++) {
                 conv = argv[i][j];
                 result &= conv;
