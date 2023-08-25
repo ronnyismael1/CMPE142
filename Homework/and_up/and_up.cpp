@@ -12,19 +12,19 @@ int main (int argc, char **argv) {
         printf("USAGE: ./and_up numbers_to_and ...");
         exit (1);
     }
+
     unsigned int result;    // Unsigned to handle binary better
     char *p;                                          
-    result = strtol(argv[1], &p, 0);    // Initialize result to be first arg
-    printf("%u\t", result);
-    printBinary(result, MAX_WIDTH);
-    printf("\n");
 
     // For loop to perform bitwise AND on arguments
-    for (int i = 2; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
         char *p;
         long conv = strtol(argv[i], &p, 0); // Base 0 to auto-detect if it is hex, dec, or octal
-        result &= conv;
-
+        if (i == 1) {
+            result = conv;  // First value initialize result
+        }else {
+            result &= conv; // Result is then bitwise AND with arguments
+        }
         printf("%ld\t", conv);
         printBinary(conv, MAX_WIDTH);
         printf("\n");
