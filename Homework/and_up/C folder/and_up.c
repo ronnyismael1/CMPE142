@@ -4,7 +4,7 @@
 int main (int argc, char **argv) {
     // Checks if we provided any arguments
     if (argc < 2) {
-        printf("USAGE: ./and_up numbers_to_and ...");
+        printf("USAGE: ./and_up numbers_to_and ...\n");
         exit (1);
     }
     unsigned int result = 0xFFFF;   // Unsigned to handle binary better
