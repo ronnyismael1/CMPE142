@@ -4,14 +4,7 @@
 #define MAX_WIDTH 16    // Max amounts of bits for visualizing
 
 // Temporary function the help visualize binary bits
-void printBinaryWithZeros(unsigned int number, int width) {
-    for (int i = width - 1; i >= 0; i--) {
-        printf("%d", (number >> i) & 1);
-        if (i % 4 == 0) {
-            printf(" ");
-        }
-    }
-}
+void printBinary(unsigned int number, int width);
 
 int main (int argc, char **argv) {
     // Checks if we provided any arguments
@@ -20,11 +13,11 @@ int main (int argc, char **argv) {
         exit (1);
     }
     unsigned int result;    // Unsigned to handle binary better
-    char *p;                                          // Initialize result to be first arg
-    result = strtol(argv[1], &p, 0);                  // ""
-    printf("%u\t", result);                           // ""
-    printBinaryWithZeros(result, MAX_WIDTH);          // ""
-    printf("\n");                                     // ""
+    char *p;                                          
+    result = strtol(argv[1], &p, 0);    // Initialize result to be first arg
+    printf("%u\t", result);
+    printBinary(result, MAX_WIDTH);
+    printf("\n");
 
     // For loop to perform bitwise AND on arguments
     for (int i = 2; i < argc; i++) {
@@ -33,21 +26,23 @@ int main (int argc, char **argv) {
         result &= conv;
 
         printf("%ld\t", conv);
-        printBinaryWithZeros(conv, MAX_WIDTH);
+        printBinary(conv, MAX_WIDTH);
         printf("\n");
     }
 
     // Prints results below
     printf("----------------------------\n%ld\t", result);
-    printBinaryWithZeros(result, MAX_WIDTH);
+    printBinary(result, MAX_WIDTH);
     printf("\n");
     exit(0);
 }
 
-// Temporary function to help convert decimal to binary
-void printBinary(unsigned int number) {
-    if (number > 1) {
-        printBinary(number / 2);
+// Temporary function
+void printBinary(unsigned int number, int width) {
+    for (int i = width - 1; i >= 0; i--) {
+        printf("%d", (number >> i) & 1);
+        if (i % 4 == 0) {
+            printf(" ");
+        }
     }
-    printf("%d", number % 2);
-};
+}
