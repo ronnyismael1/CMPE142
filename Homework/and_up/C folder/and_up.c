@@ -9,18 +9,47 @@ int main (int argc, char **argv) {
     }
     unsigned int result = 0xFFFF;   // Unsigned to handle binary better
     char *p;                                          
-    // For loop to perform bitwise AND on arguments
+
+    // Flags to help with string output
+    int isString = 0;
+    int firstWordPrinted = 0;
+
+    // Check if string exists
     for (int i = 1; i < argc; i++) {
         long conv = strtol(argv[i], &p, 0); // Base 0 to auto-detect if it is hex, dec, or octal
-        // If it is not a number
         if (*p) { // If p is pointing to non-null then it means argv[i] wasn't fully a number
-            printf("%s is not a number\n", argv[i]);
+            isString = 1;
+            break;
+        }
+    }
+
+    // Print first word and BITWISE ANDing
+    for (int i = 1; i < argc; i++) {
+
+        long conv = strtol(argv[i], &p, 0);
+        
+        // If-condition to print first word only once
+        if (*p && !firstWordPrinted) {
+            char firstWord[100];
+            int j = 0;
+
+            // Copy characters until we find a space or the end of the string
+            while (argv[i][j] != ' ' && argv[i][j] != '\0') {
+                firstWord[j] = argv[i][j];
+                j++;
+            }
+            firstWord[j] = '\0';    // null-terminate the first word
+            printf("%s is not a number\n", firstWord);
+            firstWordPrinted = 1;
+        }
+
+        // Bitwise ANDing
+        if (isString || *p) {   // If it is not a number or string flag is set
             for (int j = 0; argv[i][j] != '\0'; j++) {
                 conv = argv[i][j];
                 result &= conv;
             }
-        // If it is a decimal, hex, or octal
-        }else {
+        }else { // If it is a decimal, hex, or octal
             result &= conv;
         }
     }
