@@ -3,7 +3,23 @@
 #include <math.h>
 #include <string.h>
 
-unsigned int countSetBits(unsigned int n);
+unsigned int countSetBits(unsigned int n) {
+    unsigned int count = 0;
+    while (n) {
+        count += n & 1;   // Bitwise AND with 1 to check least sig bit
+        n >>= 1;  // Right shift to check next bit
+    }
+    return count;
+}
+
+void updatePercentage(float *lowest, float *highest, float current) {
+    if (current < *lowest) {
+        *lowest = current;
+    }
+    if (current > *highest) {
+        *highest = current;
+    }
+}
 
 int main(int argc, char *argv[]) {
 
@@ -46,7 +62,7 @@ int main(int argc, char *argv[]) {
 
     // Check if too short
     if (line_count < 2) {
-        printf("not enough samples");
+        printf("not enough samples\n");
         fclose(fp);
         free(line);
         exit(0);
@@ -77,18 +93,7 @@ int main(int argc, char *argv[]) {
         int total_length = line_length1 + line_length2;
 
         float div = (pair_set_bits*1.0f / total_length*1.0f)*100.0f;
-
-        // Find lowest and highest percentage
-        if (div < lowest_percent) {
-            lowest_percent = div;
-            round(lowest_percent);
-        }
-        if (div > highest_percent) {
-            highest_percent = div;
-            round(highest_percent);
-        }
-        //printf("set_bits1 = %d\nset_bits2 = %d\nline_length1 = %d\nline_length2 = %d\npair_set_bits = %d\ntotal_length = %d\n\n", set_bits1, set_bits2, line_length1, line_length2, pair_set_bits, total_length);
-        //printf("%d / %d = %.2f%%\n", pair_set_bits, total_length, div);
+        updatePercentage(&lowest_percent, &highest_percent, div);
     }
 
     printf("%d%%\n%d%%\n", (int)lowest_percent, (int)highest_percent);
@@ -98,16 +103,4 @@ int main(int argc, char *argv[]) {
     free(line);
     free(next_line);
     exit(0);
-}
-
-/* 
-Function to get number of set bits 
-*/ 
-unsigned int countSetBits(unsigned int n) {
-    unsigned int count = 0;
-    while (n) {
-        count += n & 1;   // Bitwise AND with 1 to check least sig bit
-        n >>= 1;  // Right shift to check next bit
-    }
-    return count;
 }
