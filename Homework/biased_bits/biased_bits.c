@@ -21,6 +21,12 @@ void updatePercentage(float *lowest, float *highest, float current) {
     }
 }
 
+void clean(FILE *fileptr, char *lp1, char *lp2) {
+    fclose(fileptr);
+    free(lp1);
+    free(lp2);
+}
+
 int main(int argc, char *argv[]) {
 
     // Check if we attached file
@@ -53,9 +59,8 @@ int main(int argc, char *argv[]) {
         // Check if it is not integer or too long
         if (*endptr != '\0' && *endptr != '\n' || line_length > 16) {
             printf("invalid: %s", line);
-            fclose(fp);
-            free(line);
-            exit(0);
+            clean(fp, line, next_line);
+            exit(2);
         }
         line_count++;
     }
@@ -63,9 +68,8 @@ int main(int argc, char *argv[]) {
     // Check if too short
     if (line_count < 2) {
         printf("not enough samples\n");
-        fclose(fp);
-        free(line);
-        exit(0);
+        clean(fp, line, next_line);
+        exit(2);
     }
 
     // Reopen file
@@ -99,8 +103,6 @@ int main(int argc, char *argv[]) {
     printf("%d%%\n%d%%\n", (int)lowest_percent, (int)highest_percent);
 
     // End program
-    fclose(fp);
-    free(line);
-    free(next_line);
+    clean(fp, line, next_line);
     exit(0);
 }
