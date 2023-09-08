@@ -56,8 +56,8 @@ int main(int argc, char *argv[]) {
     fclose(fp);
     fp = fopen(filename, "r");
 
-    int lowest_percent = 0;
-    int highest_percent = 100;
+    float lowest_percent = 100.0f;
+    float highest_percent = 0.0f;
 
     // No errors so calculate percentage of set bits
     // (read = getline(&line, &len, fp)) != -1 && 
@@ -76,15 +76,27 @@ int main(int argc, char *argv[]) {
         int pair_set_bits = set_bits1 + set_bits2;
         int total_length = line_length1 + line_length2;
 
-        float div = (pair_set_bits*1.0 / total_length*1.0)*100;
+        float div = (pair_set_bits*1.0f / total_length*1.0f)*100.0f;
 
-        printf("set_bits1 = %d\nset_bits2 = %d\nline_length1 = %d\nline_length2 = %d\npair_set_bits = %d\ntotal_length = %d\n\n", set_bits1, set_bits2, line_length1, line_length2, pair_set_bits, total_length);
-        //printf("%d / %d = %.2f\n", pair_set_bits, total_length, div);
+        // Find lowest and highest percentage
+        if (div < lowest_percent) {
+            lowest_percent = div;
+            round(lowest_percent);
+        }
+        if (div > highest_percent) {
+            highest_percent = div;
+            round(highest_percent);
+        }
+        //printf("set_bits1 = %d\nset_bits2 = %d\nline_length1 = %d\nline_length2 = %d\npair_set_bits = %d\ntotal_length = %d\n\n", set_bits1, set_bits2, line_length1, line_length2, pair_set_bits, total_length);
+        //printf("%d / %d = %.2f%%\n", pair_set_bits, total_length, div);
     }
+
+    printf("%d%%\n%d%%\n", (int)lowest_percent, (int)highest_percent);
 
     // End program
     fclose(fp);
     free(line);
+    free(next_line);
     exit(0);
 }
 
