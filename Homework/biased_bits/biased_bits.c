@@ -15,9 +15,11 @@ unsigned int countSetBits(unsigned int n) {
 void updatePercentage(float *lowest, float *highest, float current) {
     if (current < *lowest) {
         *lowest = current;
+        round(*lowest);
     }
     if (current > *highest) {
         *highest = current;
+        round(*highest);
     }
 }
 
@@ -56,8 +58,8 @@ int main(int argc, char *argv[]) {
         long num = strtol(line, &endptr, 2);
         int set_bits = countSetBits(num);
         size_t line_length = strlen(line)-1;
-        // Check if it is not integer or too long
-        if (*endptr != '\0' && *endptr != '\n' || line_length > 16) {
+        // Check if it is not integer, too long, or line is blank
+        if (*endptr != '\0' && *endptr != '\n' || line_length > 16 || *line == '\n') {
             printf("invalid: %s", line);
             clean(fp, line, next_line);
             exit(2);
@@ -80,7 +82,6 @@ int main(int argc, char *argv[]) {
     float highest_percent = 0.0f;
 
     // No errors so calculate percentage of set bits
-    // (read = getline(&line, &len, fp)) != -1 && 
     while ((read = getline(&line, &len, fp)) != -1 && getline(&next_line, &next_len, fp) != -1) { 
         char *endptr, *next_endptr;
 
