@@ -6,6 +6,7 @@
 unsigned int countSetBits(unsigned int n);
 
 int main(int argc, char *argv[]) {
+
     // Check if we attached file
     if (argc != 2) {
         printf("USAGE: ./biased_bits sample_file\n");
@@ -14,9 +15,11 @@ int main(int argc, char *argv[]) {
 
     char *filename = argv[1];  // Get filename
     FILE *fp = fopen(filename, "r");  // Open file pointer in read
-    char *line = NULL;  // For getline
-    size_t len = 0;     // ""
-    ssize_t read;       // ""
+    char *line = NULL;
+    char *next_line = NULL;
+    size_t len = 0;
+    size_t next_len = 0;
+    ssize_t read;
 
     if(fp == NULL) {
         perror(filename);
@@ -31,22 +34,17 @@ int main(int argc, char *argv[]) {
         long num = strtol(line, &endptr, 2);
         int set_bits = countSetBits(num);
         size_t line_length = strlen(line)-1;
-
-        if (*endptr != '\0' && *endptr != '\n') {
+        // Check if it is not integer or too long
+        if (*endptr != '\0' && *endptr != '\n' || line_length > 16) {
             printf("invalid: %s", line);
             fclose(fp);
             free(line);
             exit(0);
         }
-        if (line_length > 16) {
-            printf("invalid: %s", line);
-            fclose(fp);
-            free(line);
-            exit(0);        
-        }
         line_count++;
     }
 
+    // Check if too short
     if (line_count < 2) {
         printf("not enough samples");
         fclose(fp);
@@ -61,14 +59,30 @@ int main(int argc, char *argv[]) {
     int lowest_percent = 0;
     int highest_percent = 100;
 
-    // Read to dat file
-    while ((read = getline(&line, &len, fp)) != -1) { 
-        char *endptr;
-        long num = strtol(line, &endptr, 2);
-        int set_bits = countSetBits(num);   // Count bits in num
+    // No errors so calculate percentage of set bits
+    // (read = getline(&line, &len, fp)) != -1 && 
+    while ((read = getline(&line, &len, fp)) != -1 && getline(&next_line, &next_len, fp) != -1) { 
+        char *endptr, *next_endptr;
 
-        printf("Line: %sSet bits: %d\n", line, set_bits); // Print the line and set bit count
+        long num1 = strtol(line, &endptr, 2);
+        long num2 = strtol(next_line, &next_endptr, 2);
+
+        int set_bits1 = countSetBits(num1);   // Count set bits in num1
+        int set_bits2 = countSetBits(num2);   // Count set bits in num2
+
+        size_t line_length1 = strlen(line)-1;
+        size_t line_length2 = strlen(next_line)-1;
+
+        int pair_set_bits = set_bits1 + set_bits2;
+        int total_length = line_length1 + line_length2;
+
+        float div = (pair_set_bits*1.0 / total_length*1.0)*100;
+
+        printf("set_bits1 = %d\nset_bits2 = %d\nline_length1 = %d\nline_length2 = %d\npair_set_bits = %d\ntotal_length = %d\n\n", set_bits1, set_bits2, line_length1, line_length2, pair_set_bits, total_length);
+        //printf("%d / %d = %.2f\n", pair_set_bits, total_length, div);
     }
+
+    // End program
     fclose(fp);
     free(line);
     exit(0);
