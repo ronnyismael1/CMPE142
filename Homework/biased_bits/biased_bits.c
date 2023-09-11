@@ -73,8 +73,8 @@ int main(int argc, char *argv[]) {
         clean(fp, line, next_line);
         exit(2);
     }
-    
-    if (line_count > 50) {
+
+    if (line_count > 10) {
         printf("lots of lines\n");
         clean(fp, line, next_line);
         exit(2);    
