@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
         int set_bits = countSetBits(num);
         size_t line_length = strlen(line)-1;
         // Check if it is not integer, too long, or line is blank
-        if (*endptr != '\0' && *endptr != '\n' || line_length > 16 || read == 1 && *line == '\n') {
+        if (*endptr != '\0' && *endptr != '\n' || line_length > 16 || *line == '\n') {
             printf("invalid: %s", line);
             clean(fp, line, next_line);
             exit(2);
@@ -72,6 +72,12 @@ int main(int argc, char *argv[]) {
         printf("not enough samples\n");
         clean(fp, line, next_line);
         exit(2);
+    }
+    
+    if (line_count > 50) {
+        printf("lots of lines\n");
+        clean(fp, line, next_line);
+        exit(2);    
     }
 
     // Reopen file
