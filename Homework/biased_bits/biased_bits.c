@@ -74,12 +74,6 @@ int main(int argc, char *argv[]) {
         exit(2);
     }
 
-    if (line_count > 10) {
-        printf("lots of lines\n");
-        clean(fp, line, next_line);
-        exit(0);    
-    }
-
     // Reopen file
     fclose(fp);
     fp = fopen(filename, "r");
