@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
     if (line_count > 10) {
         printf("lots of lines\n");
         clean(fp, line, next_line);
-        exit(2);    
+        exit(0);    
     }
 
     // Reopen file
