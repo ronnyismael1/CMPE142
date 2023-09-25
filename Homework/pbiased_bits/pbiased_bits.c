@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <math.h>
 #include <string.h>
 
@@ -22,36 +21,23 @@ void updatePercentage(float *lowest, float *highest, float current) {
         round(*highest);
     }
 }
-void cleanff(FILE *fileptr, char *lp1, char *lp2) {
+void clean(FILE *fileptr, char *lp1, char *lp2) {
     fclose(fileptr);
     free(lp1);
     free(lp2);
 }
-
-
-int main(int argc, char *argv[]) {
-
-    // Check if we attached file
-    if (argc != 2) {
-        printf("USAGE: ./pbiased_bits sample_file ...\n");
-        exit(1);
-    }
-
-    char *filename = argv[1];  // Get filename
+void processFile(char *filename) {
     FILE *fp = fopen(filename, "r");  // Open file pointer in read
     char *line = NULL;
     char *next_line = NULL;
     size_t len = 0;
     size_t next_len = 0;
     ssize_t read;
-
     if(fp == NULL) {
         perror(filename);
         exit(2);
     }
-
     int line_count = 0;
-
     // Check for invalids first
     while ((read = getline(&line, &len, fp)) != -1) {
         char *endptr;
@@ -61,7 +47,7 @@ int main(int argc, char *argv[]) {
         // Check if it is not integer, too long, or line is blank
         if (*endptr != '\0' && *endptr != '\n' || line_length > 16 || *line == '\n') {
             printf("invalid: %s", line);
-            cleanf(fp, line, next_line);
+            clean(fp, line, next_line);
             exit(2);
         }
         line_count++;
@@ -70,7 +56,7 @@ int main(int argc, char *argv[]) {
     // Check if too short
     if (line_count < 2) {
         printf("not enough samples\n");
-        cleanf(fp, line, next_line);
+        clean(fp, line, next_line);
         exit(2);
     }
 
@@ -104,6 +90,19 @@ int main(int argc, char *argv[]) {
     printf("%d%%\n%d%%\n", (int)lowest_percent, (int)highest_percent);
 
     // End program
-    cleanf(fp, line, next_line);
+    clean(fp, line, next_line);
+}
+
+int main(int argc, char *argv[]) {
+
+    // Check if we attached file
+    if (argc != 2) {
+        printf("USAGE: ./biased_bits sample_file\n");
+        exit(1);
+    }
+
+    char *filename = argv[1];  // Get filename
+    processFile(filename);
+
     exit(0);
 }
