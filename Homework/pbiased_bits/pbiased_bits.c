@@ -27,7 +27,7 @@ void clean(FILE *fileptr, char *lp1, char *lp2) {
     free(lp1);
     free(lp2);
 }
-void processFile(char *filename) {
+void processFile(char *filename, float *lowest, float *highest) {
     FILE *fp = fopen(filename, "r");  // Open file pointer in read
     char *line = NULL;
     char *next_line = NULL;
@@ -92,6 +92,8 @@ void processFile(char *filename) {
 
     // End program
     clean(fp, line, next_line);
+    *lowest = lowest_percent;
+    *highest = highest_percent;
 }
 
 int main(int argc, char *argv[]) {
@@ -99,22 +101,32 @@ int main(int argc, char *argv[]) {
         printf("USAGE: ./pbiased_bits sample_file ...\n");
         exit(1);
     }
-
+    int pipefd[2];  // Declare pipefd outside the loop
     // Loop through all the files provided as command line arguments
     for (int i = 1; i < argc; i++) {
+        pipe(pipefd); // Create a pipe
         pid_t pid = fork();  // Create a new process
-        if (pid == 0) {
-            // Child process
+        if (pid == 0) { // Child process
+            close(pipefd[0]); // Close the read end of the pipe in the child process
             char *filename = argv[i];  // Get filename
             printf("Processing file (in child process): %s\n", filename);
-            processFile(filename);
+            float low, high;
+            processFile(filename, &low, &high);
+            write(pipefd[1], &low, sizeof(float));
+            write(pipefd[1], &high, sizeof(float));
+            close(pipefd[1]); // Close the write end of the pipe
             exit(0);  // Exit child process after processing the file
+        } else {
+            close(pipefd[1]); // Close the write end of the pipe in the parent process
         }
-        // Parent process continues to the next iteration
     }
-    // Parent process waits for all child processes to complete
+    // Parent process waits for all child processes to complete and reads from the pipe
     for (int i = 1; i < argc; i++) {
-        wait(NULL);
+        float results[2];
+        read(pipefd[0], results, sizeof(float) * 2);
+        printf("Lowest: %d%%\nHighest: %d%%\n", (int)results[0], (int)results[1]);
+        wait(NULL);  // Use the wait function here
     }
+    close(pipefd[0]); // Close the read end of the pipe in the parent process
     exit(0);
 }
