@@ -46,11 +46,11 @@ void processFile(char *filename, float *lowest, float *highest) {
         int set_bits = countSetBits(num);
         size_t line_length = strlen(line)-1;
         // Check if it is not integer, too long, or line is blank
-        /*if ( *endptr != '\0' && *endptr != '\n' || line_length > 16 || *line == '\n') {
+        if ( *endptr != '\0' && *endptr != '\n' || line_length > 16 || *line == '\n') {
             printf("invalid: %s %s", line, filename);
             clean(fp, line, next_line);
             exit(2);
-        }*/
+        }
         line_count++;
     }
 
