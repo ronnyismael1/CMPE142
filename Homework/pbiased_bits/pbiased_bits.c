@@ -88,7 +88,7 @@ void processFile(char *filename, float *lowest, float *highest) {
         updatePercentage(&lowest_percent, &highest_percent, div);
     }
 
-    printf("%d%%\n%d%%\n", (int)lowest_percent, (int)highest_percent);
+    // printf("%d%%\n%d%%\n", (int)lowest_percent, (int)highest_percent);
 
     // End program
     clean(fp, line, next_line);
@@ -101,15 +101,18 @@ int main(int argc, char *argv[]) {
         printf("USAGE: ./pbiased_bits sample_file ...\n");
         exit(1);
     }
+    int allFilesProcessedSuccessfully = 1;
     int pipefd[2];  // Declare pipefd outside the loop
+    float overall_min = 100.0f;  // Initialize to a large value
+    float overall_max = 0.0f;    // Initialize to a small value
     // Loop through all the files provided as command line arguments
     for (int i = 1; i < argc; i++) {
-        pipe(pipefd); // Create a pipe
+        pipe(pipefd); // Create a new pipe for each file
         pid_t pid = fork();  // Create a new process
         if (pid == 0) { // Child process
             close(pipefd[0]); // Close the read end of the pipe in the child process
             char *filename = argv[i];  // Get filename
-            printf("Processing file (in child process): %s\n", filename);
+            // printf("Processing file (in child process): %s\n", filename);
             float low, high;
             processFile(filename, &low, &high);
             write(pipefd[1], &low, sizeof(float));
@@ -119,14 +122,21 @@ int main(int argc, char *argv[]) {
         } else {
             close(pipefd[1]); // Close the write end of the pipe in the parent process
         }
+        int status;
+        wait(&status);  // Get the exit status of the child process
+        if (WIFEXITED(status) && WEXITSTATUS(status) != 2) {
+            // Only read from the pipe if the child process did not exit with code 2
+            float results[2];
+            read(pipefd[0], results, sizeof(float) * 2);
+            if (results[0] < overall_min) overall_min = results[0];
+            if (results[1] > overall_max) overall_max = results[1];
+        } else {
+            allFilesProcessedSuccessfully = 0;  // Set the flag to false
+        }
+        close(pipefd[0]); // Close the read end of the pipe in the parent process after reading
     }
-    // Parent process waits for all child processes to complete and reads from the pipe
-    for (int i = 1; i < argc; i++) {
-        float results[2];
-        read(pipefd[0], results, sizeof(float) * 2);
-        printf("Lowest: %d%%\nHighest: %d%%\n", (int)results[0], (int)results[1]);
-        wait(NULL);  // Use the wait function here
+    if (allFilesProcessedSuccessfully) {
+        printf("%d%%\n%d%%\n", (int)overall_min, (int)overall_max);
     }
-    close(pipefd[0]); // Close the read end of the pipe in the parent process
     exit(0);
 }
