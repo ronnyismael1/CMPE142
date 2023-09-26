@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <unistd.h>
 
 unsigned int countSetBits(unsigned int n) {
     unsigned int count = 0;
@@ -34,7 +35,7 @@ void processFile(char *filename) {
     size_t next_len = 0;
     ssize_t read;
     if(fp == NULL) {
-        perror(filename);
+        perror("hello");
         exit(2);
     }
     int line_count = 0;
@@ -45,17 +46,17 @@ void processFile(char *filename) {
         int set_bits = countSetBits(num);
         size_t line_length = strlen(line)-1;
         // Check if it is not integer, too long, or line is blank
-        if (*endptr != '\0' && *endptr != '\n' || line_length > 16 || *line == '\n') {
-            printf("invalid: %s", line);
+        /*if ( *endptr != '\0' && *endptr != '\n' || line_length > 16 || *line == '\n') {
+            printf("invalid: %s %s", line, filename);
             clean(fp, line, next_line);
             exit(2);
-        }
+        }*/
         line_count++;
     }
 
     // Check if too short
     if (line_count < 2) {
-        printf("not enough samples\n");
+        printf("not enough samples @%s\n", filename);
         clean(fp, line, next_line);
         exit(2);
     }
@@ -94,15 +95,26 @@ void processFile(char *filename) {
 }
 
 int main(int argc, char *argv[]) {
-
-    // Check if we attached file
-    if (argc != 2) {
-        printf("USAGE: ./biased_bits sample_file\n");
+    if (argc < 2) {
+        printf("USAGE: ./pbiased_bits sample_file ...\n");
         exit(1);
     }
 
-    char *filename = argv[1];  // Get filename
-    processFile(filename);
-
+    // Loop through all the files provided as command line arguments
+    for (int i = 1; i < argc; i++) {
+        pid_t pid = fork();  // Create a new process
+        if (pid == 0) {
+            // Child process
+            char *filename = argv[i];  // Get filename
+            printf("Processing file (in child process): %s\n", filename);
+            processFile(filename);
+            exit(0);  // Exit child process after processing the file
+        }
+        // Parent process continues to the next iteration
+    }
+    // Parent process waits for all child processes to complete
+    for (int i = 1; i < argc; i++) {
+        wait(NULL);
+    }
     exit(0);
 }
