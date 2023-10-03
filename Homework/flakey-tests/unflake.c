@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 // cd /mnt/c/users/rismael/documents/sjsu/f23/cmpe142/homework/flakey-tests
@@ -34,53 +37,49 @@ int main (int argc, char*argv[]) {
     }
 
     // Create temporary files for stdout and stderr
-    int stdout_fd = open("stdout_tmp.txt, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR");
-    int stderr_fd = open("stderr_tmp.txt, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR");
+    int stdout_fd = open("stdout_tmp.txt", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    int stderr_fd = open("stderr_tmp.txt", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 
-    pid_t pid = fork();     // Create child process
-    if (pid < 0) {
-        perror("Failed to fork\n");
-        exit(1);
-    }
-
-    if (pid == 0) {     // This block runs in child process
-        signal(SIGALRM, handle_timeout);    // Timeout signal handler
-        alarm(max_timeout); // Alarm for max_timeout seconds
-
-        dup2(stdout_fd, 1); // Redirect stdout to this file
-        dup2(stderr_fd, 2); // Redirect stderr to this file
-
-        close(stdout_fd); // Close original file
-        close(stderr_fd); // Close original file
-
-        execvp(argv[3], &argv[3]);  // Execute the test command, lines under will not execute
-        perror(argv[3]);    // Will only run if execvp fails
-        exit(2);
-    } else {    // This block runs in parent process
-        int status;
-        waitpid(pid, &status, 0);   // Wait for child process to finish
-
-        // TODO: Handle the exit status and other conditions
-
-        // Output the contents of temp files to stdout & stderr
-        char buffer [1024];
-        int bytes_read;
-        // Print stdout
-        lseek(stdout_fd, 0, SEEK_SET);
-        while ((bytes_read = read(stdout_fd, buffer, sizeof(buffer))) > 0) {
-            write (1, buffer, bytes_read);
+    int status;
+    for (int i = 0; i < max_tries; i++) {
+        pid_t pid = fork();     // Create child process
+        if (pid < 0) {
+            perror("Failed to fork\n");
+            exit(1);
         }
-        // Print stderr
-        lseek(stderr_fd, 0, SEEK_SET);
-        while ((bytes_read = read(stderr_fd, buffer, sizeof(buffer))) > 0) {
-            write (2, buffer, bytes_read);
+        if (pid == 0) {     // This block runs in child process
+            signal(SIGALRM, handle_timeout);    // Timeout signal handler
+            alarm(max_timeout); // Alarm for max_timeout seconds
+            dup2(stdout_fd, 1); // Redirect stdout to this file
+            dup2(stderr_fd, 2); // Redirect stderr to this file
+            close(stdout_fd); // Close original file
+            close(stderr_fd); // Close original file
+            execvp(argv[3], &argv[3]);  // Execute the test command, lines under will not execute
+            perror(argv[3]);    // Will only run if execvp fails
+            exit(2);
+        } else {    // This block runs in parent process
+            waitpid(pid, &status, 0);   // Wait for child process to finish
+            // Output the contents of temp files to stdout & stderr
+            char buffer [1024] = {0};
+            int bytes_read;
+            // Print stdout
+            lseek(stdout_fd, 0, SEEK_SET);
+            while ((bytes_read = read(stdout_fd, buffer, sizeof(buffer))) > 0) {
+                write (1, buffer, bytes_read);
+            }
+            // Print stderr
+            lseek(stderr_fd, 0, SEEK_SET);
+            while ((bytes_read = read(stderr_fd, buffer, sizeof(buffer))) > 0) {
+                write (2, buffer, bytes_read);
+            }
+            // If successful, exit
+            if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+                close(stdout_fd);
+                close(stderr_fd);
+                unlink("stdout_tmp.txt");
+                unlink("stderr_tmp.txt");
+                exit(0);
+            }
         }
-        // Clean temp files
-        close(stdout_fd); // Close original file
-        close(stderr_fd); // Close original file
-        unlink("stdout_tmp.txt");
-        unlink("stderr_tmp.txt");
     }
-
-    exit(0);
 }
