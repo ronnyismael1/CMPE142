@@ -14,12 +14,17 @@ void handle_timeout(int s) {    // If test command takes too long
         exit(100 + s);
     }
 }
-
-void print_usage(){
+void print_usage() {
     printf("USAGE: ./unflake max_tries max_timeout test_command args...\n");
     printf("max_tries - must be greater than or equal to 1\n");      
     printf("max_timeout - number of seconds greater than or equal to 1\n");
     exit(1);
+}
+void close_unlink(int out, int err) { 
+    close(out);
+    close(err);
+    unlink("stdout_tmp.txt");
+    unlink("stderr_tmp.txt");
 }
 
 int main (int argc, char*argv[]) {
@@ -35,7 +40,6 @@ int main (int argc, char*argv[]) {
         print_usage();
         exit(1);
     }
-
     // Create temporary files for stdout and stderr
     int stdout_fd = open("stdout_tmp.txt", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
     int stderr_fd = open("stderr_tmp.txt", O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
@@ -59,7 +63,6 @@ int main (int argc, char*argv[]) {
             exit(2);
         } else {    // This block runs in parent process
             waitpid(pid, &status, 0);   // Wait for child process to finish
-            // Output the contents of temp files to stdout & stderr
             char buffer [1024] = {0};
             int bytes_read;
             // Print stdout
@@ -72,12 +75,14 @@ int main (int argc, char*argv[]) {
             while ((bytes_read = read(stderr_fd, buffer, sizeof(buffer))) > 0) {
                 write (2, buffer, bytes_read);
             }
-            // If successful, exit
+            // If error
+            if (WIFEXITED(status) && WEXITSTATUS(status) == 2) {
+                close_unlink(stdout_fd, stderr_fd);
+                exit(2);
+            }
+            // If successful
             if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-                close(stdout_fd);
-                close(stderr_fd);
-                unlink("stdout_tmp.txt");
-                unlink("stderr_tmp.txt");
+                close_unlink(stdout_fd, stderr_fd);
                 exit(0);
             }
         }
