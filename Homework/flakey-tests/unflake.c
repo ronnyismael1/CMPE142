@@ -16,8 +16,8 @@ void handle_timeout(int s) {    // If test command takes too long
 }
 void print_usage() {
     printf("USAGE: ./unflake max_tries max_timeout test_command args...\n");
-    printf("max_tries - must be greater than or equal to 1\n");      
-    printf("max_timeout - number of seconds greater than or equal to 1\n");
+    printf("max_tries - must be greater than or equal to 1.\n");      
+    printf("max_timeout - number of seconds greater than or equal to 1.\n");
     exit(1);
 }
 void close_unlink(int out, int err) { 
@@ -74,7 +74,7 @@ int main (int argc, char*argv[]) {
             lseek(stderr_fd, 0, SEEK_SET);
             while ((bytes_read = read(stderr_fd, buffer, sizeof(buffer))) > 0) {
                 write (2, buffer, bytes_read);
-            }
+            }   
             // If error
             if (WIFEXITED(status) && WEXITSTATUS(status) == 2) {
                 close_unlink(stdout_fd, stderr_fd);
