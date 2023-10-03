@@ -1,0 +1,94 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <signal.h>
+
+#define TEMP_OUT "temp_stdout.txt"
+#define TEMP_ERR "temp_stderr.txt"
+
+void usage() {
+    printf("USAGE: ./unflake max_tries max_timeout test_command args...\n");
+    printf("max_tries - must be greater than or equal to 1\n");
+    printf("max_timeout - number of seconds greater than or equal to 1\n");
+    exit(1);
+}
+
+void alarm_handler(int signum) {
+    // Handle timeout
+    exit(100 + signum);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc < 4) {
+        usage();
+    }
+
+    int max_tries = atoi(argv[1]);
+    int max_timeout = atoi(argv[2]);
+
+    if (max_tries < 1 || max_timeout < 1) {
+        usage();
+    }
+
+    int stdout_fd = open(TEMP_OUT, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    int stderr_fd = open(TEMP_ERR, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+
+    signal(SIGALRM, alarm_handler);
+    alarm(max_timeout);
+
+    int try_count = 0;
+    int exit_code = 0;
+    while (try_count < max_tries) {
+        pid_t pid = fork();
+        if (pid == 0) {
+            dup2(stdout_fd, 1);
+            dup2(stderr_fd, 2);
+            execvp(argv[3], &argv[3]);
+            perror(argv[3]);
+            exit(2);
+        } else if (pid > 0) {
+            int status;
+            wait(&status);
+
+            if (WIFEXITED(status)) {
+                exit_code = WEXITSTATUS(status);
+            } else if (WIFSIGNALED(status)) {
+                exit_code = 100 + WTERMSIG(status);
+            }
+
+            if (exit_code == 0) {
+                break;
+            }
+        } else {
+            perror("fork");
+            exit(2);
+        }
+
+        try_count++;
+    }
+
+    char buffer[4096];
+    lseek(stdout_fd, 0, SEEK_SET);
+    ssize_t read_size = read(stdout_fd, buffer, sizeof(buffer) - 1);
+    if (read_size > 0) {
+        buffer[read_size] = '\0';
+        printf("%s", buffer);
+    }
+
+    lseek(stderr_fd, 0, SEEK_SET);
+    read_size = read(stderr_fd, buffer, sizeof(buffer) - 1);
+    if (read_size > 0) {
+        buffer[read_size] = '\0';
+        fprintf(stderr, "%s", buffer);
+    }
+
+    close(stdout_fd);
+    close(stderr_fd);
+    remove(TEMP_OUT);
+    remove(TEMP_ERR);
+
+    return exit_code;
+}
