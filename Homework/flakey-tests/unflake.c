@@ -10,7 +10,7 @@
 // gcc -g -std=gnu2x -Wall -o unflake unflake.c
 
 void handle_timeout(int s) {    // If test command takes too long
-    if (s == SIGALRM) {
+    if (s == SIGKILL) {
         exit(100 + s);
     }
 }
@@ -52,7 +52,7 @@ int main (int argc, char*argv[]) {
             exit(1);
         }
         if (pid == 0) {     // This block runs in child process
-            signal(SIGALRM, handle_timeout);    // Timeout signal handler
+            signal(SIGKILL, handle_timeout);    // Timeout signal handler
             alarm(max_timeout); // Alarm for max_timeout seconds
             dup2(stdout_fd, 1); // Redirect stdout to this file
             dup2(stderr_fd, 2); // Redirect stderr to this file
@@ -75,6 +75,13 @@ int main (int argc, char*argv[]) {
             while ((bytes_read = read(stderr_fd, buffer, sizeof(buffer))) > 0) {
                 write (2, buffer, bytes_read);
             }   
+            // If child was terminated by a signal
+            if (WIFSIGNALED(status)) {
+                if (WTERMSIG(status) == SIGALRM) {
+                    close_unlink(stdout_fd, stderr_fd);
+                    exit(100 + SIGKILL);
+                }
+            }
             // If error
             if (WIFEXITED(status) && WEXITSTATUS(status) == 2) {
                 close_unlink(stdout_fd, stderr_fd);
@@ -87,4 +94,6 @@ int main (int argc, char*argv[]) {
             }
         }
     }
+    close_unlink(stdout_fd, stderr_fd);
+    exit(WEXITSTATUS(status));
 }
