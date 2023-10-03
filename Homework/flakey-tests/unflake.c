@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <unistd.h>
 
 // cd /mnt/c/users/rismael/documents/sjsu/f23/cmpe142/homework/flakey-tests
@@ -7,7 +8,7 @@
 
 void handle_timeout(int s) {    // If test command takes too long
     if (s == SIGALRM) {
-        fprintf(stderr, )
+        exit(100 + s);
     }
 }
 
@@ -43,6 +44,9 @@ int main (int argc, char*argv[]) {
     }
 
     if (pid == 0) {     // This block runs in child process
+        signal(SIGALRM, handle_timeout);    // Timeout signal handler
+        alarm(max_timeout); // Alarm for max_timeout seconds
+
         dup2(stdout_fd, 1); // Redirect stdout to this file
         dup2(stderr_fd, 2); // Redirect stderr to this file
 
