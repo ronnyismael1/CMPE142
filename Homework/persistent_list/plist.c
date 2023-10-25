@@ -30,7 +30,6 @@ void find_student(struct file_hdr *hdr, int id) {
     uint32_t offset = hdr->first_student_off;
     while (offset != 0) {
         struct entry_s *entry = (struct entry_s *)offset2addr(hdr, offset);
-
         if (entry->magic == STUDENT_MAGIC && entry->student.id == id) {
             printf("found: %d %s\n", entry->student.id, entry->student.name);
             return;
@@ -47,9 +46,13 @@ void initialize_file(struct file_hdr *hdr) {
     hdr->magic = FILE_MAGIC;
     hdr->first_student_off = 0;
 
+    // Calculate the offset for the first free entry
+    uint32_t free_entry_offset = sizeof(struct file_hdr);
+    hdr->first_free_off = free_entry_offset;
+
     // Create the first free entry right after the header
-    struct entry_s *first_free_entry = (struct entry_s *)(hdr + 1);
-    first_free_entry->size = LIST_FILESIZE - sizeof(struct file_hdr);
+    struct entry_s *first_free_entry = (struct entry_s *)offset2addr(hdr, free_entry_offset);
+    first_free_entry->size = LIST_FILESIZE - sizeof(struct file_hdr) - sizeof(struct entry_s);
     first_free_entry->magic = FREE_MAGIC;
     first_free_entry->next_offset = 0;  // No subsequent entries yet
 }
@@ -58,12 +61,17 @@ void initialize_file(struct file_hdr *hdr) {
 void add_student(struct file_hdr *hdr, int id, const char *name) {
     uint32_t offset = hdr->first_student_off;
     uint32_t prev_offset = 0;
-    // Check if the student with the ID already exists
+    // Check if the student with the ID already exists and find the right position
     while (offset != 0) {
         struct entry_s *entry = (struct entry_s *)offset2addr(hdr, offset);
-        if (entry->magic == STUDENT_MAGIC && entry->student.id == id) {
-            printf("%d already present for %s\n", id, entry->student.name);
-            return;
+        if (entry->magic == STUDENT_MAGIC) {
+            if (entry->student.id == id) {
+                printf("%d already present for %s\n", id, entry->student.name);
+                return;
+            } else if (entry->student.id > id) {
+                // Found the position where the new student should be inserted
+                break;
+            }
         }
         prev_offset = offset;
         offset = entry->next_offset;
@@ -77,9 +85,7 @@ void add_student(struct file_hdr *hdr, int id, const char *name) {
     while (free_offset != 0) {
         struct entry_s *free_entry = (struct entry_s *)offset2addr(hdr, free_offset);
         if (free_entry->size >= required_size) {
-            // Found a suitable spot!
             int remaining_space = free_entry->size - required_size;
-            // Check if remaining space is too small for a new free entry
             if (remaining_space < sizeof(struct entry_s)) {
                 required_size = free_entry->size;
                 remaining_space = 0;
@@ -87,7 +93,7 @@ void add_student(struct file_hdr *hdr, int id, const char *name) {
             struct entry_s *new_student = (struct entry_s *)((char *)free_entry + remaining_space);
             new_student->size = required_size;
             new_student->magic = STUDENT_MAGIC;
-            new_student->next_offset = 0;
+            new_student->next_offset = offset;  // The offset where the new student should point to next
             new_student->student.id = id;
             strcpy(new_student->student.name, name);
             if (remaining_space == 0) {
@@ -99,12 +105,11 @@ void add_student(struct file_hdr *hdr, int id, const char *name) {
             } else {
                 free_entry->size = remaining_space;
             }
-            // Link the new student entry in the student list
             if (prev_offset) {
                 struct entry_s *prev_entry = (struct entry_s *)offset2addr(hdr, prev_offset);
-                prev_entry->next_offset = free_offset + remaining_space;
+                prev_entry->next_offset = free_offset + remaining_space;  // Point the previous student to the new student
             } else {
-                hdr->first_student_off = free_offset + remaining_space;
+                hdr->first_student_off = free_offset + remaining_space;  // The new student is the first in the list
             }
             printf("%d %s added\n", id, name);
             return;
@@ -117,58 +122,52 @@ void add_student(struct file_hdr *hdr, int id, const char *name) {
     printf("out of space\n");
 }
 
-int main(int argc, char *argv[]) { 
+int main(int argc, char *argv[]) {
+    // Check command-line arguments
     if (argc < 2 || argc > 3 || (argc == 3 && strcmp(argv[1], "-t") != 0)) {
         printf("USAGE: ./plist [-t] filename\n");
         exit(1);
     }
-
+    bool test_mode = false;
     char *filename;
     if (argc == 3) { 
+        test_mode = true;
         filename = argv[2];
     } else {
         filename = argv[1];
     }
 
     // Open the file
-    int fd = open(filename, O_RDWR | O_CREAT, S_IWUSR | S_IRUSR);
+    int flags = O_RDWR;
+    int fd = open(filename, flags);
     if (fd == -1) {
-        perror(filename);
-        exit(2);
-    }
-
-    // Check if the file is new (size 0)
-    struct stat statbuf;
-    if (fstat(fd, &statbuf) == -1) {
-        perror(filename);
-        exit(2);
-    }
-    bool newFile = (statbuf.st_size == 0);
-    if (newFile) {
-        if (ftruncate(fd, LIST_FILESIZE) == -1) {
-            perror("ftruncate");
-            exit(2);
-        }
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
     }
 
     // Memory map the file
-    struct file_hdr *hdr = (struct file_hdr *)mmap(NULL, LIST_FILESIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    int mmap_flags = test_mode ? MAP_PRIVATE : MAP_SHARED;
+    struct file_hdr *hdr = mmap(NULL, LIST_FILESIZE, PROT_READ | PROT_WRITE, mmap_flags, fd, 0);
     if (hdr == MAP_FAILED) {
-        perror(filename);
-        exit(2);
+        perror("Error mmapping the file");
+        exit(EXIT_FAILURE);
     }
-    if (newFile) {
+
+    // Check if file needs to be initialized
+    if (hdr->magic != FILE_MAGIC) {
         initialize_file(hdr);
     }
 
-    // Function handling
+    // Command handling loop
     char *line = NULL;
     size_t len = 0;
     while (getline(&line, &len, stdin) != -1) {
-        // Remove the trailing newline character
-        line[strcspn(line, "\n")] = 0;
-
-        if (strcmp(line, "l") == 0) {
+        // Handle newline character
+        if (line[strlen(line) - 1] == '\n') {
+            line[strlen(line) - 1] = '\0';
+        }
+        // Handle commands
+        if (line[0] == 'l' && strlen(line) == 1) {
             list_students(hdr);
         } else if (line[0] == 'f' && line[1] == ' ') {
             int id;
@@ -177,9 +176,7 @@ int main(int argc, char *argv[]) {
             } else {
                 printf("Invalid input format for 'f' command\n");
             }
-        }
-        
-        if (line[0] == 'a' && line[1] == ' ') {
+        } else if (line[0] == 'a' && line[1] == ' ') {
             int id;
             char name[256];  // Assuming max name length of 256 for simplicity
             if (sscanf(line + 2, "%d %255[^\n]", &id, name) == 2) {
@@ -188,12 +185,9 @@ int main(int argc, char *argv[]) {
                 printf("Invalid input format for 'a' command\n");
             }
         }
-
         free(line);
         line = NULL;
-        len = 0;
     }
-
     munmap(hdr, LIST_FILESIZE);
     close(fd);
     exit(0);
