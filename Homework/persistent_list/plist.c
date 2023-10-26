@@ -36,7 +36,6 @@ void find_student(struct file_hdr *hdr, int id) {
         }
         offset = entry->next_offset;
     }
-    // If we reach here, the student was not found
     printf("%d not found\n", id);
 }
 
@@ -61,7 +60,7 @@ void initialize_file(struct file_hdr *hdr) {
 void add_student(struct file_hdr *hdr, int id, const char *name) {
     uint32_t offset = hdr->first_student_off;
     uint32_t prev_offset = 0;
-    // Check if the student with the ID already exists and find the right position
+    // Check if student already exists, if not find a position for them
     while (offset != 0) {
         struct entry_s *entry = (struct entry_s *)offset2addr(hdr, offset);
         if (entry->magic == STUDENT_MAGIC) {
@@ -69,7 +68,7 @@ void add_student(struct file_hdr *hdr, int id, const char *name) {
                 printf("%d already present for %s\n", id, entry->student.name);
                 return;
             } else if (entry->student.id > id) {
-                // Found the position where the new student should be inserted
+                // Found a position
                 break;
             }
         }
@@ -77,8 +76,8 @@ void add_student(struct file_hdr *hdr, int id, const char *name) {
         offset = entry->next_offset;
     }
     // Size needed for the new student
-    uint16_t required_size = sizeof(struct entry_s) + strlen(name) + 1;  // +1 for null terminator
-    // Find a suitable free space
+    uint16_t required_size = sizeof(struct entry_s) + strlen(name) + 1;  // Add 1 for null
+    // Find a free space
     uint32_t free_offset = hdr->first_free_off;
     uint32_t prev_free_offset = 0;
     struct entry_s *prev_free_entry = NULL;
@@ -123,7 +122,7 @@ void add_student(struct file_hdr *hdr, int id, const char *name) {
 }
 
 int main(int argc, char *argv[]) {
-    // Check command-line arguments
+    // Check command line arguments
     if (argc < 2 || argc > 3 || (argc == 3 && strcmp(argv[1], "-t") != 0)) {
         printf("USAGE: ./plist [-t] filename\n");
         exit(1);
@@ -138,18 +137,25 @@ int main(int argc, char *argv[]) {
     }
 
     // Open the file
-    int flags = O_RDWR;
-    int fd = open(filename, flags);
+    int flags = O_RDWR | O_CREAT;
+    int fd = open(filename, flags, S_IRUSR | S_IWUSR);
     if (fd == -1) {
         perror("Error opening file");
         exit(EXIT_FAILURE);
+    }
+    struct stat st;
+    fstat(fd, &st);
+    if (st.st_size == 0) { // It's a new file
+        if (ftruncate(fd, LIST_FILESIZE) == -1) {
+            close(fd);
+            exit(EXIT_FAILURE);
+        }
     }
 
     // Memory map the file
     int mmap_flags = test_mode ? MAP_PRIVATE : MAP_SHARED;
     struct file_hdr *hdr = mmap(NULL, LIST_FILESIZE, PROT_READ | PROT_WRITE, mmap_flags, fd, 0);
     if (hdr == MAP_FAILED) {
-        perror("Error mmapping the file");
         exit(EXIT_FAILURE);
     }
 
@@ -173,17 +179,20 @@ int main(int argc, char *argv[]) {
             int id;
             if (sscanf(line + 2, "%d", &id) == 1) {
                 find_student(hdr, id);
-            } else {
-                printf("Invalid input format for 'f' command\n");
             }
         } else if (line[0] == 'a' && line[1] == ' ') {
             int id;
-            char name[256];  // Assuming max name length of 256 for simplicity
+            char name[256];
             if (sscanf(line + 2, "%d %255[^\n]", &id, name) == 2) {
                 add_student(hdr, id, name);
-            } else {
-                printf("Invalid input format for 'a' command\n");
             }
+        }
+        else {
+            printf("Invalid command %c. Possible commands are:\n", line[0]);
+            printf("    l - list all the ids and students in the list\n");
+            printf("    a id student_name - add a student with the given id and name\n");
+            printf("    d id - delete the student with the given id\n");
+            printf("    f id - find the student with the given id\n");
         }
         free(line);
         line = NULL;
