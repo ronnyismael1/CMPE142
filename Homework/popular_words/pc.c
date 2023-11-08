@@ -1,82 +1,68 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <pthread.h>
 
-typedef struct Node {
-    char *word;
-    struct Node *next;
+typedef struct node {
+    char *data;
+    struct node *next;
 } Node;
-typedef struct Queue {
+
+typedef struct queue {
     Node *head;
     Node *tail;
     pthread_mutex_t lock;
     pthread_cond_t cond;
 } Queue;
-void init_queue(Queue *q) {
-    q->head = NULL;
-    q->tail = NULL;
+
+Queue* create_queue() {
+    Queue *q = malloc(sizeof(Queue));
+    q->head = q->tail = NULL;
     pthread_mutex_init(&q->lock, NULL);
     pthread_cond_init(&q->cond, NULL);
+    return q;
 }
-void enqueue(Queue *q, const char *word) {
-    Node *new_node = NULL;
 
-    if (word) { // Only create a new node if the word is not NULL
-        new_node = malloc(sizeof(Node));
-        new_node->word = strdup(word); // Duplicate the word for the queue
-        new_node->next = NULL;
-    }
+void enqueue(Queue *q, char *data) {
+    Node *newNode = malloc(sizeof(Node));
+    newNode->data = data;
+    newNode->next = NULL;
 
     pthread_mutex_lock(&q->lock);
-
     if (q->tail != NULL) {
-        q->tail->next = new_node;
+        q->tail->next = newNode;
+        q->tail = newNode;
     } else {
-        q->head = new_node;
+        q->head = q->tail = newNode;
     }
-
-    if (new_node) { // If it's not a sentinel, update the tail
-        q->tail = new_node;
-    }
-
     pthread_cond_signal(&q->cond);
     pthread_mutex_unlock(&q->lock);
 }
-char *dequeue(Queue *q) {
-    pthread_mutex_lock(&q->lock);
 
+char* dequeue(Queue *q) {
+    pthread_mutex_lock(&q->lock);
     while (q->head == NULL) {
         pthread_cond_wait(&q->cond, &q->lock);
     }
 
     Node *temp = q->head;
-    char *word = temp->word;
-    q->head = q->head->next;
+    char *data = temp->data;
+    if (data == NULL) {  // Check for sentinel value
+        pthread_mutex_unlock(&q->lock);
+        free(temp);
+        return NULL;
+    }
 
+    q->head = q->head->next;
     if (q->head == NULL) {
         q->tail = NULL;
     }
-
     pthread_mutex_unlock(&q->lock);
 
-    free(temp); // Free the node, not the word
-    return word;
+    free(temp);
+    return data;
 }
-void destroy_queue(Queue *q) {
-    pthread_mutex_destroy(&q->lock);
-    pthread_cond_destroy(&q->cond);
 
-    // Free any remaining nodes in the queue
-    Node *current = q->head;
-    while (current != NULL) {
-        Node *next = current->next;
-        free(current->word);  // Free the duplicated string
-        free(current);
-        current = next;
-    }
-}
-void process_file(const char *filename, Queue *queues) {
+void enqueue_words_from_file(char *filename, Queue *queues[4]) {
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
         perror(filename);
@@ -85,69 +71,53 @@ void process_file(const char *filename, Queue *queues) {
 
     char *word = NULL;
     while (fscanf(file, "%ms", &word) == 1) {
-        // Use the bottom bit of the first character to select the queue
-        int queue_index = (word[0] & 1); // 0 for even, 1 for odd
-        enqueue(&queues[queue_index], word);
-        free(word); // Free the word after enqueuing
+        // Use the bottom bit of the first letter to decide the queue
+        int queue_index = word[0] & 1;
+        enqueue(queues[queue_index], word);
+        word = NULL;  // Set word to NULL so that a new string will be allocated in the next fscanf
     }
-
-    // Enqueue a sentinel NULL value to indicate no more words will come for each file
-    for (int i = 0; i < 2; ++i) {
-        enqueue(&queues[i], NULL);
+    // After reading all words from the file
+    for (int i = 0; i < 4; i++) {
+        enqueue(queues[i], NULL);  // Add sentinel value
     }
-
     fclose(file);
 }
 
-void *print_words_from_queue(void *arg) {
+void *process_queue(void *arg) {
     Queue *queue = (Queue *)arg;
-
     char *word;
     while ((word = dequeue(queue)) != NULL) {
         printf("%s\n", word);
-        free(word); // Free the word after printing
+        free(word);
     }
-
     return NULL;
 }
 
-
-
 int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        printf("Usage: %s <file1> [file2 ...]\n", argv[0]);
-        return 1;
+    // Create 4 queues
+    Queue *queues[4];
+    for (int i = 0; i < 4; i++) {
+        queues[i] = create_queue();
     }
 
-    // Initialize 2 queues
-    Queue queues[2];
-    for (int i = 0; i < 2; i++) {
-        init_queue(&queues[i]);
+    // Enqueue words from the first file into the queues
+    if (argc > 1) {
+        enqueue_words_from_file(argv[1], queues);
     }
 
-    // For now, just process the first file with the queues
-    process_file(argv[1], queues);
-
-    // Create thread for each queue
-    pthread_t print_threads[2];
-    for (int i = 0; i < 2; ++i) {
-        if (pthread_create(&print_threads[i], NULL, print_words_from_queue, &queues[i])) {
-            perror("Failed to create print thread");
-            // Handle error as appropriate
-        }
+    pthread_t threads[4];
+    for (int i = 0; i < 4; i++) {
+        pthread_create(&threads[i], NULL, process_queue, queues[i]);
     }
 
-    // Join threads after they are done
-    for (int i = 0; i < 2; ++i) {
-        if (pthread_join(print_threads[i], NULL)) {
-            perror("Failed to join print thread");
-            // Handle error as appropriate
-        }
+    for (int i = 0; i < 4; i++) {
+        pthread_join(threads[i], NULL);
     }
 
-    // Destroy the queues after processing is done
-    for (int i = 0; i < 2; i++) {
-        destroy_queue(&queues[i]);
+    // Free the queues
+    for (int i = 0; i < 4; i++) {
+        // TODO: Add code to free the nodes in the queue
+        free(queues[i]);
     }
 
     return 0;
