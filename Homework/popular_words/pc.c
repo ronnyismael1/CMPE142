@@ -14,6 +14,15 @@ typedef struct queue {
     pthread_cond_t cond;
 } Queue;
 
+typedef struct {
+    char *filename;
+    Queue *queues[4];
+} ReaderArgs;
+
+typedef struct {
+    Queue *queue;
+} PrinterArgs;
+
 Queue* create_queue() {
     Queue *q = malloc(sizeof(Queue));
     q->head = q->tail = NULL;
@@ -62,7 +71,10 @@ char* dequeue(Queue *q) {
     return data;
 }
 
-void enqueue_words_from_file(char *filename, Queue *queues[4]) {
+void *enqueue_words_from_file(void *arg) {
+    ReaderArgs *args = (ReaderArgs *)arg;
+    char *filename = args->filename;
+    Queue **queues = args->queues;
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
         perror(filename);
@@ -84,7 +96,8 @@ void enqueue_words_from_file(char *filename, Queue *queues[4]) {
 }
 
 void *process_queue(void *arg) {
-    Queue *queue = (Queue *)arg;
+    PrinterArgs *args = (PrinterArgs *)arg;
+    Queue *queue = args->queue;
     char *word;
     while ((word = dequeue(queue)) != NULL) {
         printf("%s\n", word);
@@ -100,18 +113,29 @@ int main(int argc, char *argv[]) {
         queues[i] = create_queue();
     }
 
-    // Enqueue words from the first file into the queues
-    if (argc > 1) {
-        enqueue_words_from_file(argv[1], queues);
+    pthread_t reader_threads[argc - 1];
+    ReaderArgs reader_args[argc - 1];
+    for (int i = 1; i < argc; i++) {
+        reader_args[i - 1].filename = argv[i];
+        memcpy(reader_args[i - 1].queues, queues, sizeof(queues));
+        pthread_create(&reader_threads[i - 1], NULL, enqueue_words_from_file, &reader_args[i - 1]);
     }
 
-    pthread_t threads[4];
+    pthread_t printer_threads[4];
+    PrinterArgs printer_args[4];
     for (int i = 0; i < 4; i++) {
-        pthread_create(&threads[i], NULL, process_queue, queues[i]);
+        printer_args[i].queue = queues[i];
+        pthread_create(&printer_threads[i], NULL, process_queue, &printer_args[i]);
     }
 
+    // Join reader threads
+    for (int i = 0; i < argc - 1; i++) {
+        pthread_join(reader_threads[i], NULL);
+    }
+
+    // Join printer threads
     for (int i = 0; i < 4; i++) {
-        pthread_join(threads[i], NULL);
+        pthread_join(printer_threads[i], NULL);
     }
 
     // Free the queues
