@@ -74,7 +74,7 @@ void insert_word(HashTable *ht, char *word, int count) {
         }
         entry = entry->next;
     }
-    // If the word was not found, create a new entry
+    // If the word was not found we will go ahead and create a new entry
     WordCount *new_entry = malloc(sizeof(WordCount));
     new_entry->word = strdup(word);
     new_entry->count = count;
@@ -120,7 +120,7 @@ char* dequeue(Queue *q) {
 
     Node *temp = q->head;
     char *data = temp->data;
-    if (data == NULL) {  // Check for sentinel value
+    if (data == NULL) {  // Check for sentinel value (i.e NULL)
         pthread_mutex_unlock(&q->lock);
         free(temp);
         return NULL;
@@ -148,17 +148,17 @@ void *enqueue_words_from_file(void *arg) {
 
     char *word = NULL;
     while (fscanf(file, "%ms", &word) == 1) {
-        // Use the bottom bit of the first letter to decide the queue
+        // We will use the bottom bit of the first letter to decide the queue
         int queue_index = word[0] & 1;
         enqueue(queues[queue_index], word);
         word = NULL;  // Set word to NULL so that a new string will be allocated in the next fscanf
     }
-    // After reading all words from the file
+    // After reading all words from the file proceed here
     pthread_mutex_lock(&finished_readers_lock);
     finished_readers++;
-    if (finished_readers == args->num_readers) {  // Use args->num_readers instead of argc - 1
+    if (finished_readers == args->num_readers) {
         for (int i = 0; i < 4; i++) {
-            enqueue(queues[i], NULL);  // Add sentinel value
+            enqueue(queues[i], NULL);  // Add the sentinel value (i.e NULL)
         }
     }
     pthread_mutex_unlock(&finished_readers_lock);
@@ -188,7 +188,7 @@ int hash(const char *s) {
 }
 
 int main(int argc, char *argv[]) {
-    // If no files are passed, return immediately
+    // If no files are passed we will just return
     if (argc < 2) {
         return 0;
     }
@@ -211,7 +211,7 @@ int main(int argc, char *argv[]) {
         memcpy(reader_args[i - 1].queues, queues, sizeof(queues));
         pthread_create(&reader_threads[i - 1], NULL, enqueue_words_from_file, &reader_args[i - 1]);
     }
-    // Ensure sentinel values are added to the queues
+    // Ensure sentinel values (the null values) are added to the queues
     for (int i = 0; i < argc - 1; i++) {
         pthread_join(reader_threads[i], NULL);
     }
