@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
+
+// cd /mnt/c/Users/rismael/Documents/SJSU/F23/CMPE142/Homework/popular_words
+// gcc -g -std=gnu2x -Wall -o pc pc.c -lpthread
 
 typedef struct node {
     char *data;
@@ -14,6 +18,16 @@ typedef struct queue {
     pthread_cond_t cond;
 } Queue;
 
+typedef struct WordCount {
+    char *word;
+    int count;
+    struct WordCount *next;
+} WordCount;
+
+typedef struct {
+    WordCount *entries[256];
+} HashTable;
+
 typedef struct {
     char *filename;
     Queue *queues[4];
@@ -23,12 +37,58 @@ typedef struct {
     Queue *queue;
 } PrinterArgs;
 
+typedef struct {
+    Queue *queue;
+    HashTable *hashtable;
+    int max_count;
+} CounterArgs;
+
 Queue* create_queue() {
     Queue *q = malloc(sizeof(Queue));
     q->head = q->tail = NULL;
     pthread_mutex_init(&q->lock, NULL);
     pthread_cond_init(&q->cond, NULL);
     return q;
+}
+
+HashTable* create_hashtable() {
+    HashTable *ht = malloc(sizeof(HashTable));
+    for (int i = 0; i < 256; i++) {
+        ht->entries[i] = NULL;
+    }
+    return ht;
+}
+
+void insert_word(HashTable *ht, char *word, int count) {
+    int index = hash(word) % 256;
+    WordCount *entry = ht->entries[index];
+    while (entry != NULL) {
+        if (strcmp(entry->word, word) == 0) {
+            entry->count += count;
+            return;
+        }
+        entry = entry->next;
+    }
+    // If the word was not found, create a new entry
+    WordCount *new_entry = malloc(sizeof(WordCount));
+    new_entry->word = strdup(word);
+    new_entry->count = count;
+    new_entry->next = ht->entries[index];
+    ht->entries[index] = new_entry;
+}
+
+int get_max_count(HashTable *ht) {
+    int max_count = 0;
+    for (int i = 0; i < 256; i++) {
+        WordCount *entry = ht->entries[i];
+        while (entry != NULL) {
+            if (entry->count > max_count) {
+                max_count = entry->count;
+            }
+            entry = entry->next;
+        }
+    }
+    return max_count;
 }
 
 void enqueue(Queue *q, char *data) {
@@ -95,15 +155,26 @@ void *enqueue_words_from_file(void *arg) {
     fclose(file);
 }
 
-void *process_queue(void *arg) {
-    PrinterArgs *args = (PrinterArgs *)arg;
+void *count_words(void *arg) {
+    CounterArgs *args = (CounterArgs *)arg;
     Queue *queue = args->queue;
+    HashTable *hashtable = create_hashtable();
     char *word;
+    int max_count = 0;
     while ((word = dequeue(queue)) != NULL) {
-        printf("%s\n", word);
+        insert_word(hashtable, word, 1);
         free(word);
     }
-    return NULL;
+    max_count = get_max_count(hashtable);
+    args->hashtable = hashtable;
+    args->max_count = max_count;
+    return args;
+}
+
+int hash(const char *s) { 
+   unsigned short h = 0; 
+   for (;*s; s++) h += (h >> 4) + *s + (*s << 9);  
+   return h; 
 }
 
 int main(int argc, char *argv[]) {
@@ -121,26 +192,58 @@ int main(int argc, char *argv[]) {
         pthread_create(&reader_threads[i - 1], NULL, enqueue_words_from_file, &reader_args[i - 1]);
     }
 
-    pthread_t printer_threads[4];
-    PrinterArgs printer_args[4];
+    pthread_t counter_threads[4];
+    CounterArgs counter_args[4];
     for (int i = 0; i < 4; i++) {
-        printer_args[i].queue = queues[i];
-        pthread_create(&printer_threads[i], NULL, process_queue, &printer_args[i]);
+        counter_args[i].queue = queues[i];
+        pthread_create(&counter_threads[i], NULL, count_words, &counter_args[i]);
     }
 
     // Join reader threads
     for (int i = 0; i < argc - 1; i++) {
         pthread_join(reader_threads[i], NULL);
     }
-
-    // Join printer threads
+    
+    // Enqueue sentinel values
     for (int i = 0; i < 4; i++) {
-        pthread_join(printer_threads[i], NULL);
+        enqueue(queues[i], NULL);
+    }
+
+    // Join counter threads
+    CounterArgs *counter_results[4];
+    for (int i = 0; i < 4; i++) {
+        pthread_join(counter_threads[i], (void **)&counter_results[i]);
+    }
+
+    // Merge the results
+    HashTable *merged_hashtable = create_hashtable();
+    for (int i = 0; i < 4; i++) {
+        HashTable *ht = counter_results[i]->hashtable;
+        for (int j = 0; j < 256; j++) {
+            WordCount *entry = ht->entries[j];
+            while (entry != NULL) {
+                insert_word(merged_hashtable, entry->word, entry->count);
+                entry = entry->next;
+            }
+        }
+    }
+
+    // Find the global maximum count
+    int global_max_count = get_max_count(merged_hashtable);
+
+    // Print all words with the maximum count
+    for (int i = 0; i < 256; i++) {
+        WordCount *entry = merged_hashtable->entries[i];
+        while (entry != NULL) {
+            if (entry->count == global_max_count) {
+                printf("%s\n", entry->word);
+            }
+            entry = entry->next;
+        }
     }
 
     // Free the queues
     for (int i = 0; i < 4; i++) {
-        // TODO: Add code to free the nodes in the queue
         free(queues[i]);
     }
 
