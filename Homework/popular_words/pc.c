@@ -6,6 +6,10 @@
 // cd /mnt/c/Users/rismael/Documents/SJSU/F23/CMPE142/Homework/popular_words
 // gcc -g -std=gnu2x -Wall -o pc pc.c -lpthread
 
+// Declare a global variable and a mutex to protect it
+int finished_readers = 0;
+pthread_mutex_t finished_readers_lock;
+
 typedef struct node {
     char *data;
     struct node *next;
@@ -31,6 +35,7 @@ typedef struct {
 typedef struct {
     char *filename;
     Queue *queues[4];
+    int num_readers;
 } ReaderArgs;
 
 typedef struct {
@@ -149,9 +154,14 @@ void *enqueue_words_from_file(void *arg) {
         word = NULL;  // Set word to NULL so that a new string will be allocated in the next fscanf
     }
     // After reading all words from the file
-    for (int i = 0; i < 4; i++) {
-        enqueue(queues[i], NULL);  // Add sentinel value
+    pthread_mutex_lock(&finished_readers_lock);
+    finished_readers++;
+    if (finished_readers == args->num_readers) {  // Use args->num_readers instead of argc - 1
+        for (int i = 0; i < 4; i++) {
+            enqueue(queues[i], NULL);  // Add sentinel value
+        }
     }
+    pthread_mutex_unlock(&finished_readers_lock);
     fclose(file);
 }
 
@@ -178,38 +188,41 @@ int hash(const char *s) {
 }
 
 int main(int argc, char *argv[]) {
+    // If no files are passed, return immediately
+    if (argc < 2) {
+        return 0;
+    }
+
     // Create 4 queues
     Queue *queues[4];
     for (int i = 0; i < 4; i++) {
         queues[i] = create_queue();
     }
 
+    // Initialize the mutex
+    pthread_mutex_init(&finished_readers_lock, NULL);
+
+    // Create and join reader threads
     pthread_t reader_threads[argc - 1];
     ReaderArgs reader_args[argc - 1];
     for (int i = 1; i < argc; i++) {
         reader_args[i - 1].filename = argv[i];
+        reader_args[i - 1].num_readers = argc - 1;  // Set num_readers
         memcpy(reader_args[i - 1].queues, queues, sizeof(queues));
         pthread_create(&reader_threads[i - 1], NULL, enqueue_words_from_file, &reader_args[i - 1]);
     }
+    // Ensure sentinel values are added to the queues
+    for (int i = 0; i < argc - 1; i++) {
+        pthread_join(reader_threads[i], NULL);
+    }
 
+    // Create and join counter threads
     pthread_t counter_threads[4];
     CounterArgs counter_args[4];
     for (int i = 0; i < 4; i++) {
         counter_args[i].queue = queues[i];
         pthread_create(&counter_threads[i], NULL, count_words, &counter_args[i]);
     }
-
-    // Join reader threads
-    for (int i = 0; i < argc - 1; i++) {
-        pthread_join(reader_threads[i], NULL);
-    }
-    
-    // Enqueue sentinel values
-    for (int i = 0; i < 4; i++) {
-        enqueue(queues[i], NULL);
-    }
-
-    // Join counter threads
     CounterArgs *counter_results[4];
     for (int i = 0; i < 4; i++) {
         pthread_join(counter_threads[i], (void **)&counter_results[i]);
@@ -231,12 +244,26 @@ int main(int argc, char *argv[]) {
     // Find the global maximum count
     int global_max_count = get_max_count(merged_hashtable);
 
+    // Find the word with the maximum count
+    char *max_word = NULL;
+    int max_count = 0;
+    for (int i = 0; i < 256; i++) {
+        WordCount *entry = merged_hashtable->entries[i];
+        while (entry != NULL) {
+            if (entry->count == global_max_count && entry->count > max_count) {
+                max_word = entry->word;
+                max_count = entry->count;
+            }
+            entry = entry->next;
+        }
+    }
+
     // Print all words with the maximum count
     for (int i = 0; i < 256; i++) {
         WordCount *entry = merged_hashtable->entries[i];
         while (entry != NULL) {
             if (entry->count == global_max_count) {
-                printf("%s\n", entry->word);
+                printf("%s %d\n", entry->word, entry->count);
             }
             entry = entry->next;
         }
