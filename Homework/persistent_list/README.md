@@ -16,11 +16,13 @@ This project is a robust implementation of a persistent linked list in C, demons
 
 ```c
 TESTING USAGE: ./dump_plist check|dump plist_file
+```
 
 The main program can be run with the following command:
 
 ```c
 ./plist [-t] filename
+```
 
 The -t flag is optional and is used for testing purposes.
 
