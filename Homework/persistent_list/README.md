@@ -28,7 +28,7 @@ The -t flag is optional and is used for testing purposes.
 
 Once the program is running, you can use the following commands:
 
-l: List all the ids and students in the list.
-a id student_name: Add a student with the given id and name.
-d id: Delete the student with the given id.
-f id: Find the student with the given id.
+- `l`: List all the ids and students in the list.
+- `a id student_name`: Add a student with the given id and name.
+- `d id`: Delete the student with the given id.
+- `f id`: Find the student with the given id.
