@@ -202,6 +202,14 @@ int main(int argc, char *argv[]) {
     // Initialize the mutex
     pthread_mutex_init(&finished_readers_lock, NULL);
 
+    // Create and join counter threads
+    pthread_t counter_threads[2];
+    CounterArgs counter_args[2];
+    for (int i = 0; i < 2; i++) {
+        counter_args[i].queue = queues[i];
+        pthread_create(&counter_threads[i], NULL, count_words, &counter_args[i]);
+    }
+
     // Create and join reader threads
     pthread_t reader_threads[argc - 1];
     ReaderArgs reader_args[argc - 1];
@@ -216,21 +224,15 @@ int main(int argc, char *argv[]) {
         pthread_join(reader_threads[i], NULL);
     }
 
-    // Create and join counter threads
-    pthread_t counter_threads[4];
-    CounterArgs counter_args[4];
-    for (int i = 0; i < 4; i++) {
-        counter_args[i].queue = queues[i];
-        pthread_create(&counter_threads[i], NULL, count_words, &counter_args[i]);
-    }
-    CounterArgs *counter_results[4];
-    for (int i = 0; i < 4; i++) {
+    // Join counter threads
+    CounterArgs *counter_results[2];
+    for (int i = 0; i < 2; i++) {
         pthread_join(counter_threads[i], (void **)&counter_results[i]);
     }
 
     // Merge the results
     HashTable *merged_hashtable = create_hashtable();
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 2; i++) {
         HashTable *ht = counter_results[i]->hashtable;
         for (int j = 0; j < 256; j++) {
             WordCount *entry = ht->entries[j];
