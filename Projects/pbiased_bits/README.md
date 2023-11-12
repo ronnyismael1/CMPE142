@@ -12,8 +12,7 @@ This is a C program that analyzes binary data from multiple files. The program r
 
 ## Usage
 
-1. Compile the program using the provided Makefile: `make`
-2. Run the program with the names of the binary files as arguments: `./pbiased_bits file1 file2 ...`
+1. Run the program with the names of the binary files as arguments: `./pbiased_bits file1 file2 ...`
 
 ## Testing
 
@@ -25,5 +24,4 @@ Unit tests are provided for key functions in the program. To run the tests:
 ## Requirements
 
 - GCC
-- Make
 - CUnit
